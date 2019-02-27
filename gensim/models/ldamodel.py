@@ -348,8 +348,9 @@ class LdaModel(interfaces.TransformationABC, basemodel.BaseTopicModel):
                  distributed=False, chunksize=2000, passes=1, update_every=1,
                  alpha='symmetric', eta=None, decay=0.5, offset=1.0, eval_every=10,
                  iterations=50, gamma_threshold=0.001, minimum_probability=0.01,
-                 random_state=None, ns_conf=None, minimum_phi_value=0.01,
-                 per_word_topics=False, callbacks=None, dtype=np.float32):
+                 phi_concentration=(100., 1. / 100.), random_state=None,
+                 ns_conf=None, minimum_phi_value=0.01, per_word_topics=False,
+                 callbacks=None, dtype=np.float32):
         """
 
         Parameters
@@ -403,6 +404,9 @@ class LdaModel(interfaces.TransformationABC, basemodel.BaseTopicModel):
             Minimum change in the value of the gamma parameters to continue iterating.
         minimum_probability : float, optional
             Topics with a probability lower than this threshold will be filtered out.
+        phi_concentration : tuple, optional
+            A tuple of gamma parameters. Controls the sparsity of the per-document topics by adjusting the prior
+            on the Dirichlet concentration parameter.
         random_state : {np.random.RandomState, int}, optional
             Either a randomState object or a seed to generate one. Useful for reproducibility.
         ns_conf : dict of (str, object), optional
@@ -447,6 +451,7 @@ class LdaModel(interfaces.TransformationABC, basemodel.BaseTopicModel):
         self.offset = offset
         self.minimum_probability = minimum_probability
         self.num_updates = 0
+        self.phi_concentration = phi_concentration
 
         self.passes = passes
         self.update_every = update_every
@@ -648,7 +653,7 @@ class LdaModel(interfaces.TransformationABC, basemodel.BaseTopicModel):
             logger.debug("performing inference on a chunk of %i documents", len(chunk))
 
         # Initialize the variational distribution q(theta|gamma) for the chunk
-        gamma = self.random_state.gamma(100., 1. / 100., (len(chunk), self.num_topics)).astype(self.dtype, copy=False)
+        gamma = self.random_state.gamma(self.phi_concentration[0], self.phi_concentration[1], (len(chunk), self.num_topics)).astype(self.dtype, copy=False)
         Elogtheta = dirichlet_expectation(gamma)
         expElogtheta = np.exp(Elogtheta)
 
